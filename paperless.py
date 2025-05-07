@@ -2,8 +2,6 @@ import fitz
 import pandas as pd
 import re
 import numpy as np
-import os
-import shutil
 
 def read_pdf (pdf_path):
     pdf = fitz.open(pdf_path)
