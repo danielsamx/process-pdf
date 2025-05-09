@@ -27,6 +27,7 @@ def process_destiny_pdfs(files, v1, rates):
                 all_dataFrames.append(df)
                 inv_dates.append(inv_date)
             except Exception as e:
+                print(e)
                 messagebox.showerror("Error", f"Error al procesar el archivo")
                 return
 
@@ -88,12 +89,10 @@ def create_interface():
     # Get background color
     bg_color = window.cget("fg_color")
 
-    # Título
     label_title = ctk.CTkLabel(window, text="Procesamiento de Facturas", font=("Arial", 16))
     label_title.pack(pady=10)
 
-    # Combo primero
-    combobox = ctk.CTkComboBox(window, values=['Destiny', 'Paperless'])
+    combobox = ctk.CTkComboBox(window, values=['Destiny', 'Duties'])
     combobox.pack(pady=10)
 
     content_frame = ctk.CTkFrame(window, fg_color=bg_color)
@@ -126,7 +125,7 @@ def create_interface():
             button = ctk.CTkButton(content_frame, text="Seleccionar archivos", command=on_submit)
             button.pack(pady=5)
 
-        elif option == "Paperless":
+        elif option == "Duties":
             def on_submit():
                 files = select_files()
                 if not files:

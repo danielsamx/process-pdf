@@ -1,5 +1,9 @@
 {
+  "_awb": "Los tres primeros digitos son de AWB MASTER de cada factura",
+  "_special": "Tarifa que se aplica a clientes WFM",
+  "_normal": "Tarifa que se aplica a otros clientes",
   "023": [1.81, 1.91],
   "145": [1.76, 1.86],
-  "406": [1.86, 1.96]
+  "406": [1.86, 1.96],
+  "369": [1.76, 1.86]
 }
