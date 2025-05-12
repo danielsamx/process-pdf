@@ -2,6 +2,7 @@ import fitz
 import pandas as pd
 import re
 import numpy as np
+from datetime import datetime
 
 def read_pdf (pdf_path):
     pdf = fitz.open(pdf_path)
@@ -68,7 +69,7 @@ def delete_for_index (df, inferior_limit, superior_limit, type):
     return df
 
 def create_new_dataframe (df):
-    final = pd.DataFrame(columns=['HAWB', 'INVOICE VALUE', 'DESCRIPTION', 'GUIDE', 'STEMS', 'ENTERED VALUE', 'RATES', 'DUTIES'])
+    final = pd.DataFrame(columns=['HAWB', 'INVOICE VALUE', 'DESCRIPTION', 'TYPE DUTIES', 'GUIDE', 'STEMS', 'ENTERED VALUE', 'RATES', 'DUTIES'])
     i = 0
 
     while i < len(df) - 1:
@@ -88,6 +89,7 @@ def create_new_dataframe (df):
         if re.match(r'(\d{4}\.\d{2}\.\d{2})', val2) and re.match(r'1 KG', val3):
             new_row = {
                 'DESCRIPTION': val1,
+                'TYPE DUTIES': 'DUTTIES TARIFFES',
                 'GUIDE': val2,
                 'STEMS': val3,
                 'RATES': val4,
@@ -98,6 +100,7 @@ def create_new_dataframe (df):
         elif re.search(r'(\d{4}\.\d{2}\.\d{4})+', val2):
             new_row = {
                 'DESCRIPTION': val1,
+                'TYPE DUTIES': 'DUTTIES',
                 'GUIDE': val2,
                 'STEMS': val3,
                 'ENTERED VALUE': val4,
@@ -109,6 +112,7 @@ def create_new_dataframe (df):
         elif re.match(r'499 - Merchandise Processing Fee', val1):
             new_row = {
                 'DESCRIPTION': val1,
+                'TYPE DUTIES': 'OTHER CHARGES',
                 'RATES': val2,
                 'DUTIES': val3,
             }
@@ -124,13 +128,19 @@ def create_new_dataframe (df):
     return final
 
 def insert_new_columns(final, filer_code, import_date, export_date, total_entered_value, duty, other, awb):
-    final.insert(0, 'ENTRY NUMBER', filer_code)
-    final.insert(1, 'IMPORT DATE', import_date)
-    final.insert(2, 'EXPORT DATE', export_date)
-    final.insert(3, 'TOTAL ENTERED VALUE', total_entered_value)
-    final.insert(4, 'TOTAL DUTY', duty)
-    final.insert(5, 'TOTAL OTHER FEES', other)
-    final.insert(6, 'MAWB', awb)
+    actual_date = datetime.today().strftime("%d/%m/%Y")
+    final.insert(0, 'PROCESS DATE (dd/mm/yyyy)', actual_date)
+    final.insert(1, 'ENTRY NUMBER', filer_code)
+    month, day, year = import_date.split("/")
+    import_date = f"{day}/{month}/{year}"
+    final.insert(2, 'IMPORT DATE (dd/mm/yyyy)', import_date)
+    month, day, year = export_date.split("/")
+    export_date = f"{day}/{month}/{year}"
+    final.insert(3, 'EXPORT DATE (dd/mm/yyyy)', export_date)
+    final.insert(4, 'TOTAL ENTERED VALUE', total_entered_value)
+    final.insert(5, 'TOTAL DUTY', duty)
+    final.insert(6, 'TOTAL OTHER FEES', other)
+    final.insert(7, 'MAWB', awb)
     return final
 
 def format_columns (text):
