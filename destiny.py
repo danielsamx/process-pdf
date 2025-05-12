@@ -114,8 +114,8 @@ def procesar_pdf(pdf_path, v1, rates):
         df_final['TOTAL CHARGES'] = df_final['CHECKED FREIGHT ($)'].astype(float) + df_final['OTHER CHARGES']
         df_final['TOTAL CHARGES'] = df_final['TOTAL CHARGES'].round(2)
         col = df_final.pop("CHECKED FREIGHT ($)")
-        df_final.insert(6, 'BASE RATE', df_final['CLIENT'].apply(lambda x: v2 if 'WFM' in str(x) else v3))
-        df_final.insert(7, "CHECKED FREIGHT ($)", col)
+        df_final.insert(7, 'BASE RATE', df_final['CLIENT'].apply(lambda x: v2 if 'WFM' in str(x) else v3))
+        df_final.insert(8, "CHECKED FREIGHT ($)", col)
         fecha_actual = datetime.today().strftime("%Y-%m-%d")
         df_final.insert(0, 'PROCESS DATE', fecha_actual)
         df_final.insert(1, 'NUMBER', inv_number)
