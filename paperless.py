@@ -68,6 +68,14 @@ def delete_for_index (df, inferior_limit, superior_limit, type):
     df = df.drop(index=indexes).reset_index(drop=True)
     return df
 
+def delete_range (df, column, value, start, end):
+    n_index = df[df[column]==value].index
+    indexes_to_drop = set()
+    for idx in n_index:
+        indexes_to_drop.update(range(idx - start, idx + end))
+    df = df.drop(index=[i for i in indexes_to_drop if i in df.index]).reset_index(drop=True)
+    return df 
+
 def create_new_dataframe (df):
     final = pd.DataFrame(columns=['HAWB', 'INVOICE VALUE', 'DESCRIPTION', 'TYPE DUTIES', 'GUIDE', 'STEMS', 'ENTERED VALUE', 'RATES', 'DUTIES'])
     i = 0
@@ -207,8 +215,10 @@ def process_pdf(pdf_path):
         result_top = search_data_top(data_top, data)
         total_entered_value = result_top[0]
         df = delete_and_clean_data(df)
+        df = delete_range(df, 'Línea', 'N', 2, 1)
+        df = delete_range(df, 'Línea', '1. Filer Code/Entry Number', 2, 28)
         df = delete_for_index(df, 2, 4, "awb")
-        df = delete_for_index(df, 0, 29, "cbp form")
+        df = delete_for_index(df, 0, 2, "cbp form")
         final = create_new_dataframe(df)
         final = insert_new_columns(final, filer_code, import_date, export_date, total_entered_value, duty, other, awb)
         final = fill_columns(final)
