@@ -54,7 +54,7 @@ def delete_and_clean_data(df):
                      
 def delete_for_index (df, inferior_limit, superior_limit, type):
     if type == "awb":
-        regex = r'[A-Z][A-Za-z0-9]{8}'
+        regex = r'[A-Z][A-Za-z0-9]{7,12}'
     elif type == "cbp form":
         regex = r'CBP Form \d+ \(\d{1,2}/\d{2}\)'
 
@@ -68,13 +68,20 @@ def delete_for_index (df, inferior_limit, superior_limit, type):
     df = df.drop(index=indexes).reset_index(drop=True)
     return df
 
-def delete_range (df, column, value, start, end):
-    n_index = df[df[column]==value].index
+def delete_range(df, column, value, start, end):
+    pattern = r"^\$\d+\.\d+$"
+    n_index = df[df[column] == value].index
     indexes_to_drop = set()
+    
     for idx in n_index:
-        indexes_to_drop.update(range(idx - start, idx + end))
-    df = df.drop(index=[i for i in indexes_to_drop if i in df.index]).reset_index(drop=True)
-    return df 
+        for i in range(idx - start, idx + end):
+            if i in df.index:
+                cell_value = str(df.loc[i, column])
+                if not re.match(pattern, cell_value):
+                    indexes_to_drop.add(i)
+
+    df = df.drop(index=indexes_to_drop).reset_index(drop=True)
+    return df
 
 def create_new_dataframe (df):
     final = pd.DataFrame(columns=['HAWB', 'INVOICE VALUE', 'DESCRIPTION', 'TYPE DUTIES', 'GUIDE', 'STEMS', 'ENTERED VALUE', 'RATES', 'DUTIES'])
@@ -126,7 +133,7 @@ def create_new_dataframe (df):
             }
             final = pd.concat([final, pd.DataFrame([new_row])], ignore_index=True)
             i += 3
-        elif re.match(r'^[A-Z][A-Za-z0-9]{8}$', val1):
+        elif re.match(r'^[A-Z][A-Za-z0-9]{7,12}$', val1):
             if not final.empty:
                 final.at[len(final) - 1, 'HAWB'] = val1
                 final.at[len(final) - 1, 'INVOICE VALUE'] = val2
@@ -148,7 +155,8 @@ def insert_new_columns(final, filer_code, import_date, export_date, total_entere
     final.insert(4, 'TOTAL ENTERED VALUE', total_entered_value)
     final.insert(5, 'TOTAL DUTY', duty)
     final.insert(6, 'TOTAL OTHER FEES', other)
-    final.insert(7, 'MAWB', awb)
+    guide_1 = awb.split(",")[0].strip()
+    final.insert(7, 'MAWB', guide_1)
     return final
 
 def format_columns (text):
