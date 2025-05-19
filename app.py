@@ -1,141 +1,161 @@
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
-import paperless
-import pandas as pd
-import destiny
-import sys
-import os
-import json
+import threading, json, sys, os
 
-def select_files():
-    files = filedialog.askopenfilenames(
+import paperless
+import destiny
+import pandas as pd
+
+# ---------- SELECCIONAR PDF ----------
+def select_files() -> tuple[str]:
+    return filedialog.askopenfilenames(
         title="Selecciona los archivos PDF",
         filetypes=[("Archivos PDF", "*.pdf")]
     )
-    if not files:
-        return []
-    return files
 
-def process_destiny_pdfs(files, v1, rates):
-    try:
-        all_dataFrames = []
-        inv_dates = []
+# ---------- PROCESAMIENTO ­DESTINY ----------
+def process_destiny_pdfs(files, v1, rates, on_progress=None):
+    all_dfs, inv_dates = [], []
 
-        for file in files:
-            try:
-                df, inv_date, inv_number, inv_awb = destiny.procesar_pdf(file, v1, rates)
-                all_dataFrames.append(df)
-                inv_dates.append(inv_date)
-            except Exception as e:
-                print(e)
-                messagebox.showerror("Error", f"Error al procesar el archivo")
-                return
+    for i, file in enumerate(files, start=1):
+        try:
+            df, inv_date, inv_number, inv_awb = destiny.procesar_pdf(file, v1, rates)
+            all_dfs.append(df)
+            inv_dates.append(inv_date)
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al procesar {os.path.basename(file)}")
+            return
+        if on_progress: on_progress(i)
 
-        if len(all_dataFrames) > 1:
-            min_inv_date = min(inv_dates)
-            max_inv_date = max(inv_dates)
-            output_filename = f"{min_inv_date}-{max_inv_date}.xlsx"
-        else:
-            output_filename = f"{inv_awb}-{inv_date}-{inv_number}.xlsx"
+    output_filename = (f"{min(inv_dates)}-{max(inv_dates)}.xlsx"
+                       if len(all_dfs) > 1
+                       else f"{inv_awb}-{inv_date}-{inv_number}.xlsx")
 
-        combined_df = pd.concat(all_dataFrames, ignore_index=True)
-        combined_df = combined_df.sort_values(by='AWB MASTER', key=lambda col: col.str[:3].astype(int)).reset_index(drop=True)
-        combined_df.to_excel(output_filename, index=False)
-        messagebox.showinfo("Éxito", f"Archivo guardado como: {output_filename}")
+    (pd.concat(all_dfs, ignore_index=True)
+       .sort_values(by='AWB MASTER',
+                    key=lambda c: c.str[:3].astype(int))
+       .reset_index(drop=True)
+       .to_excel(output_filename, index=False))
 
-    except Exception as e:
-        messagebox.showerror("Error", f"Error al procesar los archivos")
+    messagebox.showinfo("Éxito", f"Archivo guardado como:\n{output_filename}")
 
-def proccess_paperless_pdfs(files):
-    try:
-        # List to store all DataFrames
-        all_dataframes = []
-        import_dates = []
+# ---------- PROCESAMIENTO DUTTIES ----------
+def process_paperless_pdfs(files, on_progress=None):
+    all_dfs, import_dates = [], []
 
-        for file in files:
-            try:
-                df, import_date, filer_code, awb = paperless.process_pdf(file)
-                filer_code = filer_code.replace("-","")
-                import_date = import_date.replace("/","-")
-                all_dataframes.append(df)
-                import_dates.append(import_date)
-            except:
-                messagebox.showerror("Error", f"Error al procesar el archivo")
-                return
-                
-        if len(all_dataframes) > 1:
-            min_import_date = min(import_dates)
-            max_import_date = max(import_dates)
-            output_filename = f"{min_import_date}-{max_import_date}.xlsx"
-        else:
-            output_filename = f"{filer_code}-{import_date}-{awb}.xlsx"
-            
-        combined_df = pd.concat(all_dataframes, ignore_index=True)
+    for i, file in enumerate(files, start=1):
+        try:
+            df, import_date, filer_code, awb = paperless.process_pdf(file)
+            import_dates.append(import_date := import_date.replace("/", "-"))
+            filer_code = filer_code.replace("-", "")
+            all_dfs.append(df)
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al procesar {os.path.basename(file)}")
+            return
+        if on_progress: on_progress(i)
 
-        combined_df.to_excel(output_filename, index=False)
-        messagebox.showinfo("Éxito", f"Archivo guardado como: {output_filename}")
+    output_filename = (f"{min(import_dates)}-{max(import_dates)}.xlsx"
+                       if len(all_dfs) > 1
+                       else f"{filer_code}-{import_date}-{awb}.xlsx")
 
-    except Exception as e:
-        messagebox.showerror("Error", "Error al procesar los archivos")
+    pd.concat(all_dfs, ignore_index=True).to_excel(output_filename, index=False)
+    messagebox.showinfo("Éxito", f"Archivo guardado como:\n{output_filename}")
 
+# ---------- BARRA DE PROGRESO ----------
+def run_with_progress(task_fn, files, *args):
+    total = len(files)
+    if total == 0:
+        return 
+
+    # content_frame.pack_forget()
+    progress_bar.pack(fill="x", padx=40)
+    percent_label.pack()
+
+    progress_bar.set(0)
+    percent_var.set("0 %")
+
+    def advance(done):
+        frac = done / total
+        progress_bar.set(frac)            
+        percent_var.set(f"{int(frac*100)} %")
+
+    def worker():
+        try:
+            task_fn(files, *args, on_progress=advance)
+        finally:                         
+            progress_bar.set(0)
+            percent_var.set("")
+            progress_bar.pack_forget()
+            percent_label.pack_forget()
+            content_frame.pack(pady=10, padx=20, fill="both", expand=True)
+
+    threading.Thread(target=worker, daemon=True).start()
+
+# ---------- INTERFAZ PRINCIPAL ----------
 def create_interface():
-    # Window configuration
     ctk.set_appearance_mode("System")
     ctk.set_default_color_theme("green")
+
     window = ctk.CTk()
-    window.geometry("400x220")
+    window.geometry("400x240")
     window.title("BellaFlor")
+    window.resizable(False, False)
 
-    # Get background color
-    bg_color = window.cget("fg_color")
-
-    label_title = ctk.CTkLabel(window, text="Procesamiento de Facturas", font=("Arial", 16))
-    label_title.pack(pady=10)
+    ctk.CTkLabel(window, text="Procesamiento de Facturas",
+                 font=("Arial", 16)).pack(pady=10)
 
     combobox = ctk.CTkComboBox(window, values=['Destiny', 'Duties'])
     combobox.pack(pady=10)
 
-    content_frame = ctk.CTkFrame(window, fg_color=bg_color)
+    global progress_bar, percent_var, percent_label, content_frame
+    progress_bar = ctk.CTkProgressBar(window, mode="determinate")
+    percent_var = ctk.StringVar()
+    percent_label = ctk.CTkLabel(window, textvariable=percent_var,
+                                font=("Arial", 12))
+    content_frame = ctk.CTkFrame(window,
+                                 fg_color=window.cget("fg_color"))
     content_frame.pack(pady=10, padx=20, fill="both", expand=True)
 
     def combobox_callback(option):
-        for widget in content_frame.winfo_children():
-            widget.destroy()
+        for w in content_frame.winfo_children():
+            w.destroy()
 
         if option == "Destiny":
-            input = ctk.CTkEntry(content_frame, placeholder_text="Flete = 0.02")
-            input.pack(pady=5)
+            entry = ctk.CTkEntry(content_frame,
+                                 placeholder_text="Flete = 0.02")
+            entry.pack(pady=5)
+
             def on_submit():
-                value = float(input.get()) if input.get().strip() else 0.02
+                v1 = float(entry.get()) if entry.get().strip() else 0.02
                 files = select_files()
                 if not files:
                     return
-                if getattr(sys, 'frozen', False):
-                    base_dir = os.path.dirname(sys.executable)
-                else:
-                    base_dir = os.path.dirname(os.path.abspath(__file__))
-                json_path = os.path.join(base_dir, "rates.json")
+                base_dir = (os.path.dirname(sys.executable)
+                            if getattr(sys, 'frozen', False)
+                            else os.path.dirname(os.path.abspath(__file__)))
                 try:
-                    with open(json_path, "r", encoding="utf-8") as f:
+                    with open(os.path.join(base_dir, "rates.json"),
+                              encoding="utf-8") as f:
                         rates = json.load(f)
                 except Exception as e:
-                    messagebox.showerror("Error", f"❌ No se pudo leer el archivo rates.json:\n{e}")
-                    return None
-                process_destiny_pdfs(files, value, rates)
-            button = ctk.CTkButton(content_frame, text="Seleccionar archivos", command=on_submit)
-            button.pack(pady=5)
+                    messagebox.showerror("Error",
+                        f"No se pudo leer rates.json")
+                    return
+                run_with_progress(process_destiny_pdfs, files, v1, rates)
+
+            ctk.CTkButton(content_frame, text="Seleccionar archivos",
+                          command=on_submit).pack(pady=5)
 
         elif option == "Duties":
             def on_submit():
                 files = select_files()
-                if not files:
-                    return
-                proccess_paperless_pdfs(files)
-            button = ctk.CTkButton(content_frame, text="Seleccionar archivos", command=on_submit)
-            button.pack(pady=5)
+                run_with_progress(process_paperless_pdfs, files)
+            ctk.CTkButton(content_frame, text="Seleccionar archivos",
+                          command=on_submit).pack(pady=5)
 
     combobox.configure(command=combobox_callback)
     window.mainloop()
 
+# ---------- EJECUCIÓN ----------
 if __name__ == "__main__":
     create_interface()
