@@ -20,12 +20,12 @@ def read_pdf (pdf_path):
 def delete_first_data(df):
     i = 0
     while i < len(df):
-        if re.match(r'^\d{3,4} .+ (\d+(\.\d+)?|\d+)%$', str(df.loc[i, 'Línea'])):
+        if re.match(r'(\d{4}\.\d{2}\.\d{2})', str(df.loc[i, 'Línea'])):
             break
         else:
             i += 1
-    data = df.head(i)
-    df = df.iloc[i:]
+    data = df.head(i-1)
+    df = df.iloc[i-1:]
     df = df.reset_index(drop=True)
     return data, df
 

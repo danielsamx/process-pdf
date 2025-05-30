@@ -96,6 +96,9 @@ def procesar_pdf(pdf_path, v1, rates):
         guide = inv_awb[:3]
         if guide in rates:
             v2, v3 = rates[guide]
+        else:
+            v2 = 1.76
+            v3 = 1.86
         tablas = tablas.iloc[:, :-1]
         df_final = combinar_titulos_tablas(titulos, tablas)
 
