@@ -29,6 +29,15 @@ def delete_first_data(df):
     df = df.reset_index(drop=True)
     return data, df
 
+def delete_rows_with_kg(df):
+    pattern_kg = re.compile(r'^\s*\d+(\.\d+)?\s*KG\s*$', re.IGNORECASE)
+    def should_delete(line):
+        line = str(line).strip()
+        return pattern_kg.match(line)
+    mask = df['Línea'].apply(lambda x: not should_delete(x))
+    df_filtered = df[mask].reset_index(drop=True)
+    return df_filtered
+
 def search_data_buttom(search_data, data):
     results = []
     for item in search_data:
@@ -100,19 +109,8 @@ def create_new_dataframe (df):
         elif i == len(df) - 5:
             val2 = str(df['Línea'].iloc[i + 1])
             val3 = str(df['Línea'].iloc[i + 2])
-
-        if re.match(r'(\d{4}\.\d{2}\.\d{2})', val2) and re.match(r'1 KG', val3):
-            new_row = {
-                'DESCRIPTION': val1,
-                'TYPE DUTIES': 'DUTTIES TARIFFES',
-                'GUIDE': val2,
-                'STEMS': val3,
-                'RATES': val4,
-                'DUTIES': val5,
-            }
-            final = pd.concat([final, pd.DataFrame([new_row])], ignore_index=True)
-            i += 5
-        elif re.search(r'(\d{4}\.\d{2}\.\d{4})+', val2):
+            
+        if re.search(r'\d{4}\.\d{2}\.\d{4}', val2):
             new_row = {
                 'DESCRIPTION': val1,
                 'TYPE DUTIES': 'DUTTIES',
@@ -124,6 +122,16 @@ def create_new_dataframe (df):
             }
             final = pd.concat([final, pd.DataFrame([new_row])], ignore_index=True)
             i += 6
+        elif re.match(r'(\d{4}\.\d{2}\.\d{2})', val2):
+            new_row = {
+                'DESCRIPTION': val1,
+                'TYPE DUTIES': 'DUTTIES TARIFFES',
+                'GUIDE': val2,
+                'RATES': val3,
+                'DUTIES': val4,
+            }
+            final = pd.concat([final, pd.DataFrame([new_row])], ignore_index=True)
+            i += 4
         elif re.match(r'499 - Merchandise Processing Fee', val1):
             new_row = {
                 'DESCRIPTION': val1,
@@ -224,9 +232,10 @@ def process_pdf(pdf_path):
         total_entered_value = result_top[0]
         df = delete_and_clean_data(df)
         df = delete_range(df, 'Línea', 'N', 2, 1)
-        df = delete_range(df, 'Línea', '1. Filer Code/Entry Number', 2, 28)
+        df = delete_range(df, 'Línea', '1. Filer Code/Entry Number', 2, 26)
         df = delete_for_index(df, 2, 4, "awb")
         df = delete_for_index(df, 0, 2, "cbp form")
+        df = delete_rows_with_kg(df)
         final = create_new_dataframe(df)
         final = insert_new_columns(final, filer_code, import_date, export_date, total_entered_value, duty, other, awb)
         final = fill_columns(final)
