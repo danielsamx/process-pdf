@@ -3,6 +3,20 @@ import pandas as pd
 import re
 import numpy as np
 from datetime import datetime
+import json, os, sys
+
+base_dir = (
+    os.path.dirname(sys.executable)
+    if getattr(sys, 'frozen', False)
+    else os.path.dirname(os.path.abspath(__file__))
+)
+
+try:
+    with open(os.path.join(base_dir, "patterns.json"), encoding="utf-8") as f:
+        PATTERNS = json.load(f)
+except Exception as e:
+    print(f"No se pudo leer patterns.json: {e}")
+    PATTERNS = {}
 
 def read_pdf (pdf_path):
     pdf = fitz.open(pdf_path)
@@ -20,7 +34,7 @@ def read_pdf (pdf_path):
 def delete_first_data(df):
     i = 0
     while i < len(df):
-        if re.match(r'(\d{4}\.\d{2}\.\d{2})', str(df.loc[i, 'Línea'])):
+        if re.match(PATTERNS["FIRST_DATA"], str(df.loc[i, 'Línea'])):
             break
         else:
             i += 1
@@ -63,9 +77,9 @@ def delete_and_clean_data(df):
                      
 def delete_for_index (df, inferior_limit, superior_limit, type):
     if type == "awb":
-        regex = r'[A-Z][A-Za-z0-9]{7,12}'
+        regex = PATTERNS["AWB"]
     elif type == "cbp form":
-        regex = r'CBP Form \d+ \(\d{1,2}/\d{2}\)'
+        regex = PATTERNS["CPB_FORM"]
 
     indexes = set()
     for i in range(len(df)):
@@ -110,7 +124,7 @@ def create_new_dataframe (df):
             val2 = str(df['Línea'].iloc[i + 1])
             val3 = str(df['Línea'].iloc[i + 2])
             
-        if re.search(r'\d{4}\.\d{2}\.\d{4}', val2):
+        if re.search(PATTERNS["DUTTIES"], val2):
             new_row = {
                 'DESCRIPTION': val1,
                 'TYPE DUTIES': 'DUTTIES',
@@ -122,7 +136,7 @@ def create_new_dataframe (df):
             }
             final = pd.concat([final, pd.DataFrame([new_row])], ignore_index=True)
             i += 6
-        elif re.match(r'(\d{4}\.\d{2}\.\d{2})', val2):
+        elif re.match(PATTERNS["DUTTIES_TARIFFES"], val2):
             new_row = {
                 'DESCRIPTION': val1,
                 'TYPE DUTIES': 'DUTTIES TARIFFES',
@@ -132,7 +146,7 @@ def create_new_dataframe (df):
             }
             final = pd.concat([final, pd.DataFrame([new_row])], ignore_index=True)
             i += 4
-        elif re.match(r'499 - Merchandise Processing Fee', val1):
+        elif re.match(PATTERNS["OTHER_CHARGES"], val1):
             new_row = {
                 'DESCRIPTION': val1,
                 'TYPE DUTIES': 'OTHER CHARGES',
