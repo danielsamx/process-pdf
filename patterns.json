@@ -1,0 +1,8 @@
+{
+  "DUTTIES": "\\d{4}\\.\\d{2}\\.\\d{4}",
+  "DUTTIES_TARIFFES": "\\d{4}\\.\\d{2}\\.\\d{2}",
+  "OTHER_CHARGES": "499\\s-\\sMerchandise\\sProcessing\\sFee",
+  "CPB_FORM": "CBP\\sForm\\s\\d+\\s\\(\\d{1,2}/\\d{2}\\)",
+  "AWB": "[A-Z][A-Za-z0-9]{7,12}",
+  "FIRST_DATA": "\\d{4}\\.\\d{2}\\.\\d{2}"
+}
