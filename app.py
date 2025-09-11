@@ -1,9 +1,12 @@
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import threading, json, sys, os
+from datetime import date
+import re
 
 import paperless
 import destiny
+import whole_foods
 import pandas as pd
 
 # ---------- SELECCIONAR PDF ----------
@@ -61,6 +64,33 @@ def process_paperless_pdfs(files, on_progress=None):
     pd.concat(all_dfs, ignore_index=True).to_excel(output_filename, index=False)
     messagebox.showinfo("Éxito", f"Archivo guardado como:\n{output_filename}")
 
+# ---------- PROCESAMIENTO WHOLEFOODS ----------
+def process_whole_foods_pdfs(files, on_progress=None):
+        """Procesa archivos de tipo whole foods y genera Excel con nombres limpios."""
+        all_dfs = []
+
+        for i, file in enumerate(files, start=1):
+            try:
+                df = whole_foods.process_pdf(file)
+                # Formatear fechas y códigos
+                all_dfs.append(df)
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al procesar {os.path.basename(file)}")
+                return
+            if on_progress: on_progress(i)
+        today = date.today()
+        if len(all_dfs) > 1:
+            output_filename = f'{"WholeFood"}-{today}.xlsx'
+        else:
+            output_filename = f'{"WholeFoods"}-{today}.xlsx'
+
+        # Reemplazar cualquier carácter inválido para nombres de archivo
+        output_filename = re.sub(r"[\\/:*?\"<>|]", "-", output_filename)
+
+        # Guardar Excel
+        pd.concat(all_dfs, ignore_index=True).to_excel(output_filename, index=False)
+        messagebox.showinfo("Éxito", f"Archivo guardado como:\n{output_filename}")
+
 # ---------- BARRA DE PROGRESO ----------
 def run_with_progress(task_fn, files, *args):
     total = len(files)
@@ -104,7 +134,7 @@ def create_interface():
     ctk.CTkLabel(window, text="Procesamiento de Facturas",
                  font=("Arial", 16)).pack(pady=10)
 
-    combobox = ctk.CTkComboBox(window, values=['Destiny', 'Duties'])
+    combobox = ctk.CTkComboBox(window, values=['Destiny', 'Duties', 'Whole Foods'])
     combobox.pack(pady=10)
 
     global progress_bar, percent_var, percent_label, content_frame
@@ -150,6 +180,12 @@ def create_interface():
             def on_submit():
                 files = select_files()
                 run_with_progress(process_paperless_pdfs, files)
+            ctk.CTkButton(content_frame, text="Seleccionar archivos",
+                          command=on_submit).pack(pady=5)
+        elif option == "Whole Foods":
+            def on_submit():
+                files = select_files()
+                run_with_progress(process_whole_foods_pdfs, files)
             ctk.CTkButton(content_frame, text="Seleccionar archivos",
                           command=on_submit).pack(pady=5)
 
