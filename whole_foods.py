@@ -86,7 +86,7 @@ def create_new_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     y se asignan a todas las filas generadas en esa página.
     """
     final = pd.DataFrame(columns=[
-        'PH ORDER', 'PH SHIP TO', 'COOLER', 'PO', 'LOAD DATE', 'DELIVERY DATE', 'DAY DELIVERY DATE', 'DAY SHIP TO', 'SHIP TO', 'RULE',
+        'PAGE', 'PH ORDER', 'PH SHIP TO', 'COOLER', 'PO', 'LOAD DATE', 'DELIVERY DATE', 'DAY DELIVERY DATE', 'DAY SHIP TO', 'SHIP TO', 'DESTINATION',
         'ID', 'QUANTITY', 'DESCRIPTION', 'QUALITY',
         'PRICE 1', 'PRICE 2', 'PRICE 3', 'PRICE 4'
     ])
@@ -104,7 +104,8 @@ def create_new_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             "LOAD DATE": df_page.loc[6, "Línea"],
             "DELIVERY DATE": df_page.loc[3, "Línea"],
             "SHIP TO": df_page.loc[4, "Línea"] + df_page.loc[2, "Línea"],
-            "RULE": df_page.loc[1, "Línea"],
+            "DESTINATION": df_page.loc[1, "Línea"],
+            "PAGE": page
         }
 
         i = 0
@@ -216,9 +217,11 @@ def process_pdf (pdf_path):
         fecha_str = row['DELIVERY DATE']
         fecha_obj = datetime.strptime(fecha_str, "%m/%d/%y")
         day_name = fecha_obj.strftime("%A")
-        address = row['RULE']
+        address = row['DESTINATION']
         destination = address.rsplit(' ', 1)[0]
         ship_day_name = get_ship_day(RULES, destination, day_name)
         df.loc[idx, 'DAY SHIP TO'] = str(ship_day_name)
         df.loc[idx, 'DAY DELIVERY DATE'] = str(day_name)
+    actual_date = datetime.today().strftime("%m/%d/%Y")
+    df.insert(0, 'PROCESS DATE', actual_date)
     return df
