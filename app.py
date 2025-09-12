@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import threading, json, sys, os
-from datetime import date
+from datetime import datetime
 import re
 
 import paperless
@@ -78,11 +78,13 @@ def process_whole_foods_pdfs(files, on_progress=None):
                 messagebox.showerror("Error", f"Error al procesar {os.path.basename(file)}")
                 return
             if on_progress: on_progress(i)
-        today = date.today()
+        today = datetime.now()
+        today_str = today.strftime("%d-%m-%Y %H-%M-%S")
+        parse_today = datetime.strptime(today_str, "%d-%m-%Y %H-%M-%S")
         if len(all_dfs) > 1:
-            output_filename = f'{"WholeFood"}-{today}.xlsx'
+            output_filename = f'{"WholeFood "}{parse_today}.xlsx'
         else:
-            output_filename = f'{"WholeFoods"}-{today}.xlsx'
+            output_filename = f'{"WholeFoods "}{parse_today}.xlsx'
 
         # Reemplazar cualquier carácter inválido para nombres de archivo
         output_filename = re.sub(r"[\\/:*?\"<>|]", "-", output_filename)
