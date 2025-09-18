@@ -1,9 +1,10 @@
 import fitz
 import pandas as pd
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import sys
+from typing import Optional, Tuple
 
 # Determinar la ruta base según si es ejecutable o script
 base_dir = (
@@ -12,12 +13,14 @@ base_dir = (
     else os.path.dirname(os.path.abspath(__file__))  
 )
 
-excel_path = os.path.join(base_dir, "rules.xlsx")
+excel_path = os.path.join(base_dir, "WFM TRUCK-FECHAS.xlsx")
 
 try:
-    RULES = pd.read_excel(excel_path) 
+    RULES = pd.read_excel(excel_path, sheet_name=["CH ROBINSON", "ELITE"])
+    RULES_CH = RULES['CH ROBINSON']
+    RULES_EMI = RULES['ELITE']
 except Exception as e:
-    print(f"No se pudo leer rules.xlsx: {e}")
+    print(f"No se pudo leer el archivo de reglas: {e}")
     RULES = pd.DataFrame() 
 
 def read_pdf (pdf_path):
@@ -86,7 +89,7 @@ def create_new_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     y se asignan a todas las filas generadas en esa página.
     """
     final = pd.DataFrame(columns=[
-        'PAGE', 'PH ORDER', 'PH SHIP TO', 'COOLER', 'PO', 'LOAD DATE', 'DELIVERY DATE', 'DAY DELIVERY DATE', 'DAY SHIP TO', 'SHIP TO', 'DESTINATION',
+        'PH ORDER', 'PH SHIP TO', 'COOLER', 'PO', 'LOAD DATE', 'DELIVERY DATE', 'DAY DELIVERY DATE', 'SHIP TO DATE', 'DAY SHIP TO', 'MIAMI DATE', 'DAY MIAMI', 'SHIP TO','DESTINATION',
         'ID', 'QUANTITY', 'DESCRIPTION', 'QUALITY',
         'PRICE 1', 'PRICE 2', 'PRICE 3', 'PRICE 4'
     ])
@@ -169,19 +172,76 @@ def format_columns (text):
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
-def get_ship_day(rules: pd.DataFrame, destination: str, delivery_day: str) -> pd.Series:
+def return_ship_day_ch_robinson(rules: pd.DataFrame, destination: str, delivery_day: str) -> str:
     """
-    Retorna el 'Ship Day' como string según 'Destination' y 'Delivery Days'.
+    Retorna el 'SHIP DAY' como string según 'DESTINATION' y 'DELIVERY DAYS'.
     Si no hay coincidencias, retorna None.
     """
     filtered = rules.loc[
-        (rules['Destination'].str.lower() == destination.lower()) &
-        (rules['Delivery Days'].str.lower() == delivery_day.lower()),
-        'Ship Day'
+        (rules['DESTINATION'].str.lower() == destination.lower()) &
+        (rules['DELIVERY DAYS'].str.lower() == delivery_day.lower()),
+        'SHIP DAY'
     ]
     if not filtered.empty:
-        return str(filtered.iloc[0]) 
-    return ''
+        return str(filtered.iloc[0])
+    return None
+
+def return_ship_day_elite(rules: pd.DataFrame, destination: str, delivery_day: str) -> Optional[Tuple[str, str]]:
+    """
+    Retorna una tupla con ('SHIP DAY {i}', 'MIA {i}') según coincidencia parcial en 'ELITE TO WHOLE FOODS'
+    y coincidencia exacta en cualquier columna 'DELIVERY DAY {i}'.
+    Si no hay coincidencias, retorna None.
+    """
+    delivery_day = delivery_day.strip().lower()
+    destination = destination.lower()
+    delivery_columns = []
+    for col in rules.columns:
+        match = re.match(r"DELIVERY DAY (\d+)", col.upper())
+        if match:
+            i = int(match.group(1))
+            delivery_columns.append((i, col))
+    for _, row in rules.iterrows():
+        elite_field = str(row.get('ELITE TO WHOLE FOODS', '')).lower()
+        if destination in elite_field:
+            for i, col in delivery_columns:
+                day_value = str(row.get(col, '')).lower()
+                if delivery_day == day_value:
+                    ship_day_key = f"SHIP DATE {i}"
+                    ship_day = str(row.get(ship_day_key, ''))
+                    mia_key = f"MIA {i}"
+                    mia = str(row.get(mia_key, ''))
+                    return ship_day, mia
+    return None
+
+def get_previous_weekday(target_day: str, base_date_str: str, date_format: str = "%m/%d/%y") -> Optional[str]:
+    """
+    Returns the most recent date within the past 7 days that matches the target weekday.
+    - target_day: weekday name in English (e.g., 'Tuesday')
+    - base_date_str: reference date in 'MM/DD/YYYY' format
+    """
+    weekdays = {
+        'Monday': 0,
+        'Tuesday': 1,
+        'Wednesday': 2,
+        'Thursday': 3,
+        'Friday': 4,
+        'Saturday': 5,
+        'Sunday': 6
+    }
+    base_date = datetime.strptime(base_date_str, date_format)
+    target_index = weekdays[target_day.strip().capitalize()]
+    for i in range(0, 7):
+        candidate = base_date - timedelta(days=i)
+        if candidate.weekday() == target_index:
+            return candidate.strftime(date_format)
+    return None
+
+def apply_date(df: pd.DataFrame, insert_col: str, day_col: str, base_date_col:str) -> pd.DataFrame:
+    df[insert_col] = df.apply(
+        lambda row: get_previous_weekday(row[day_col], row[base_date_col]) if row[day_col] and row[base_date_col] else '',
+        axis=1
+    )
+    return df
 
 def process_pdf (pdf_path):
     df = read_pdf(pdf_path)
@@ -219,9 +279,24 @@ def process_pdf (pdf_path):
         day_name = fecha_obj.strftime("%A")
         address = row['DESTINATION']
         destination = address.rsplit(' ', 1)[0]
-        ship_day_name = get_ship_day(RULES, destination, day_name)
-        df.loc[idx, 'DAY SHIP TO'] = str(ship_day_name)
+        destination_without_coma = address.split(',')[0].strip()
+        if row.get('COOLER') == 'CHFL':
+            ship_day_name = return_ship_day_ch_robinson(RULES_CH, destination, day_name)
+            df.loc[idx, 'DAY SHIP TO'] = str(ship_day_name).capitalize() if ship_day_name else ""
+        elif row.get('COOLER') == 'EMI':
+            result = return_ship_day_elite(RULES_EMI, destination_without_coma, day_name)
+            if result:
+                ship_day_name, miami_day_name = result
+                df.loc[idx, 'DAY SHIP TO'] = str(ship_day_name).capitalize() if ship_day_name else ""
+                df.loc[idx, 'DAY MIAMI'] = str(miami_day_name).capitalize() if miami_day_name else ""
+            else:
+                df.loc[idx, 'DAY SHIP TO'] = ""
+                df.loc[idx, 'DAY MIAMI'] = ""
+        else:
+            df.loc[idx, 'DAY SHIP TO'] = ""
         df.loc[idx, 'DAY DELIVERY DATE'] = str(day_name)
+    df = apply_date(df, 'SHIP TO DATE', 'DAY SHIP TO', 'DELIVERY DATE')
+    df = apply_date(df, 'MIAMI DATE', 'DAY MIAMI', 'SHIP TO DATE')
     actual_date = datetime.today().strftime("%m/%d/%Y")
     df.insert(0, 'PROCESS DATE', actual_date)
     return df
